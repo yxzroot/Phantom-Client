@@ -13,9 +13,10 @@ For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft
 
 ## Credits and origins
 
+- **Phantom Client started from a build shared by [Raindots on YouTube](https://www.youtube.com/@raindots)**. I further developed that build into this project. Raindots's build was based on Raven B+; credit for sharing that starting build belongs to Raindots.
 - **Raven B+** was created by [Kopamed](https://github.com/Kopamed) ([original Raven B+ project](https://github.com/Kopamed/Raven-bPLUS)). Credit for the original client belongs to its creator and contributors.
-- The local codebase used here descends from **Raven B++**, the continuation by [K-ov and contributors](https://github.com/K-ov/Raven). Credit for Raven B++ and its existing features belongs to that project.
-- Phantom Client is an independent set of local additions and modifications; it is **not** an official release from either upstream project and is not affiliated with Lunar Client or Hypixel.
+- Some local development sources also derive from **Raven B++**, the continuation by [K-ov and contributors](https://github.com/K-ov/Raven). Credit for Raven B++ and its existing features belongs to that project.
+- Phantom Client is an independent set of local additions and modifications; it is **not** an official release from Raindots or either upstream project and is not affiliated with Lunar Client or Hypixel.
 
 ## Patch sources
 
