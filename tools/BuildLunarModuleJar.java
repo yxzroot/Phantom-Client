@@ -81,6 +81,10 @@ public final class BuildLunarModuleJar implements Opcodes {
                 String mapped = table.get("net/minecraft/util/Vec3i/" + name + suffix);
                 if (mapped != null) return mapped;
             }
+            if (owner.equals("net/minecraft/client/renderer/texture/DynamicTexture")) {
+                String mapped = table.get("net/minecraft/client/renderer/texture/AbstractTexture/" + name + suffix);
+                if (mapped != null) return mapped;
+            }
             return name;
         }
     }

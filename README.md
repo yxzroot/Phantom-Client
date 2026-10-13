@@ -7,7 +7,7 @@ Minecraft 1.8.9 client patches developed against a locally installed Raven-deriv
 [![Download latest JAR](https://img.shields.io/badge/Download-latest%20JAR-385A45?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/releases/latest/download/Phantom-Client-1.8.9.jar)
 [![Download latest patch sources ZIP](https://img.shields.io/badge/Download-latest%20patch%20sources%20ZIP-344B73?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/archive/refs/heads/main.zip)
 
-The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `c019d0e9bfd426818730ee8aa32cfdc23e308cbb3b78b449849f0e9d0d89d8a3`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
+The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `1ee495f22019a25b79e162d29c1d6c4767d88782833a5bb25b23db29568e9128`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
 
 For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft **1.8.9 Forge mods** folder, and avoid loading a second copy of the same Raven-derived mod at the same time. Compatibility with other clients, installations, or servers has not been established.
 
@@ -20,7 +20,7 @@ For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft
 
 ## Patch sources
 
-The files under `src/` cover the locally developed bridge/scaffold helpers, Freelook integration, player-only hitbox outline, CPS counter and draggable editor, color-picker UI, HUD animation, click-sound changes, and related mixins. `tools/` contains utilities for MCP-to-SRG remapping and validating selected class files when modifying a compatible JAR.
+The files under `src/` cover the locally developed Phantom HUD and Poppins TTF renderer, bridge/scaffold helpers, Freelook integration, player-only hitbox outline, CPS counter and draggable editor, color-picker UI, HUD animation, click-sound changes, and related mixins. `tools/` contains utilities for MCP-to-SRG remapping, Phantom HUD patching, and validating selected class files when modifying a compatible JAR.
 
 These sources describe changes to a specific **already patched** Raven-compatible mod. They reference classes and hooks not all present in a clean upstream Raven B++ checkout, notably its Apple GUI and local mixin registration. Additional porting and integration are required to build them against another version. Do not use the tools to redistribute upstream binaries without checking upstream permissions and licenses.
 
