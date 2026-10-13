@@ -1,0 +1,13 @@
+# Local builds and game files are not part of this source-only repository.
+*.class
+*.jar
+*.zip
+build/
+classes/
+.gradle/
+.gradle-user/
+run/
+logs/
+*.log
+.idea/
+.vscode/
