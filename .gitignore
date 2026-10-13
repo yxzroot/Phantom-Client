@@ -1,6 +1,7 @@
 # Local builds and game files are not part of this source-only repository.
 *.class
 *.jar
+!dist/Phantom-Client-1.8.9.jar
 *.zip
 build/
 classes/

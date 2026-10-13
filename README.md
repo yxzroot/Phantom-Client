@@ -1,6 +1,15 @@
 # Phantom Client
 
-Minecraft 1.8.9 client patch sources developed against a locally installed Raven-derived Forge mod on Lunar Client. This repository contains **patch sources and bytecode-remapping utilities only**. It does **not** contain a downloadable client, a Minecraft/Forge distribution, or a patched Raven JAR, and is **not** a standalone, one-command build.
+Minecraft 1.8.9 client patches developed against a locally installed Raven-derived Forge mod on Lunar Client. The repository includes the **exact patched JAR copied from the installed mod** and the separately developed patch sources. It is **not** a standalone, one-command build; the source archive does not include all upstream sources needed to reproduce the binary.
+
+## Downloads
+
+[![Download latest JAR](https://img.shields.io/badge/Download-latest%20JAR-385A45?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/releases/latest/download/Phantom-Client-1.8.9.jar)
+[![Download latest patch sources ZIP](https://img.shields.io/badge/Download-latest%20patch%20sources%20ZIP-344B73?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/archive/refs/heads/main.zip)
+
+The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `c019d0e9bfd426818730ee8aa32cfdc23e308cbb3b78b449849f0e9d0d89d8a3`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
+
+For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft **1.8.9 Forge mods** folder, and avoid loading a second copy of the same Raven-derived mod at the same time. Compatibility with other clients, installations, or servers has not been established.
 
 ## Credits and origins
 
