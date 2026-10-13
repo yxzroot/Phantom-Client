@@ -8,11 +8,16 @@ import keystrokesmod.client.module.setting.impl.PickerRGBSetting;
 import keystrokesmod.client.module.setting.impl.SliderSetting;
 import keystrokesmod.client.module.setting.impl.TickSetting;
 import net.minecraft.client.renderer.RenderGlobal;
+import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
+
+import java.nio.FloatBuffer;
 
 /** Player-only visual outlines; never changes actual entity hitboxes or packets. */
 public final class PlayerHitboxESP extends Module {
@@ -36,27 +41,44 @@ public final class PlayerHitboxESP extends Module {
                 || mc.theWorld == null || mc.thePlayer == null) return;
         float partial = ((RenderWorldLastEvent) wrapper.getEvent()).partialTicks;
         double maxDistanceSq = range.getInput() * range.getInput();
+        boolean hasTarget = false;
+        for (EntityPlayer other : mc.theWorld.playerEntities) {
+            if (validTarget(other, maxDistanceSq)) {
+                hasTarget = true;
+                break;
+            }
+        }
+        if (!hasTarget) return; // Leave Lunar's render state completely untouched in empty worlds.
+
         RenderManager camera = mc.getRenderManager();
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT
-                | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_LINE_BIT | GL11.GL_CURRENT_BIT);
-        GL11.glPushMatrix();
+        boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean texture = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
+        boolean lighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
+        boolean depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+        boolean depthWrite = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        float oldLineWidth = GL11.glGetFloat(GL11.GL_LINE_WIDTH);
+        int srcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+        int dstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB);
+        int srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        int dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
+        FloatBuffer currentColor = BufferUtils.createFloatBuffer(16); // LWJGL 2 requires 16 slots.
+        GL11.glGetFloat(GL11.GL_CURRENT_COLOR, currentColor);
         try {
-            GL11.glEnable(GL11.GL_BLEND);
-            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GL11.glDisable(GL11.GL_TEXTURE_2D);
-            GL11.glDisable(GL11.GL_LIGHTING);
+            GlStateManager.enableBlend();
+            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                    GL11.GL_ONE, GL11.GL_ZERO);
+            GlStateManager.disableTexture2D();
+            GlStateManager.disableLighting();
             if (throughWalls.isToggled()) {
-                GL11.glDisable(GL11.GL_DEPTH_TEST);
-                GL11.glDepthMask(false);
+                GlStateManager.disableDepth();
+                GlStateManager.depthMask(false);
             }
             GL11.glLineWidth((float) thickness.getInput());
-            GL11.glColor4f(color.getRed() / 255.0F, color.getGreen() / 255.0F,
+            GlStateManager.color(color.getRed() / 255.0F, color.getGreen() / 255.0F,
                     color.getBlue() / 255.0F, (float) (opacity.getInput() / 100.0));
 
             for (EntityPlayer other : mc.theWorld.playerEntities) {
-                if (other == mc.thePlayer || other.isDead || other.deathTime > 0
-                        || (!showInvisible.isToggled() && other.isInvisible())
-                        || mc.thePlayer.getDistanceSqToEntity(other) > maxDistanceSq) continue;
+                if (!validTarget(other, maxDistanceSq)) continue;
                 double x = other.lastTickPosX + (other.posX - other.lastTickPosX) * partial - camera.viewerPosX;
                 double y = other.lastTickPosY + (other.posY - other.lastTickPosY) * partial - camera.viewerPosY;
                 double z = other.lastTickPosZ + (other.posZ - other.lastTickPosZ) * partial - camera.viewerPosZ;
@@ -67,8 +89,25 @@ public final class PlayerHitboxESP extends Module {
                         hitbox.maxY - other.posY + y, hitbox.maxZ - other.posZ + z));
             }
         } finally {
-            GL11.glPopMatrix();
-            GL11.glPopAttrib();
+            GL11.glLineWidth(oldLineWidth);
+            GlStateManager.color(currentColor.get(0), currentColor.get(1),
+                    currentColor.get(2), currentColor.get(3));
+            GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            if (blend) GlStateManager.enableBlend();
+            else GlStateManager.disableBlend();
+            if (texture) GlStateManager.enableTexture2D();
+            else GlStateManager.disableTexture2D();
+            if (lighting) GlStateManager.enableLighting();
+            else GlStateManager.disableLighting();
+            if (depth) GlStateManager.enableDepth();
+            else GlStateManager.disableDepth();
+            GlStateManager.depthMask(depthWrite);
         }
+    }
+
+    private boolean validTarget(EntityPlayer other, double maxDistanceSq) {
+        return other != mc.thePlayer && !other.isDead && other.deathTime <= 0
+                && (showInvisible.isToggled() || !other.isInvisible())
+                && mc.thePlayer.getDistanceSqToEntity(other) <= maxDistanceSq;
     }
 }

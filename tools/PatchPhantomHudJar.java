@@ -26,6 +26,9 @@ public final class PatchPhantomHudJar implements Opcodes {
     private static final String FONT = "keystrokesmod/client/utils/font/";
     private static final String HOST = "keystrokesmod/client/module/modules/HUD.class";
     private static final String EVENT = "keystrokesmod/client/event/impl/Render2DEvent";
+    private static final String APPLE = "keystrokesmod/client/clickgui/apple/";
+    private static final String LEFT_CLICKER = "keystrokesmod/client/module/modules/combat/LeftClicker.class";
+    private static final String PLAYER_UTILS = "keystrokesmod/client/utils/Utils$Player";
 
     private static byte[] api(byte[] original) {
         ClassNode node = new ClassNode();
@@ -78,6 +81,29 @@ public final class PatchPhantomHudJar implements Opcodes {
         return writer.toByteArray();
     }
 
+    /** The Auto Clicker's own "Weapon only" setting intentionally means swords only. */
+    private static byte[] swordOnly(byte[] original) {
+        ClassNode node = new ClassNode();
+        new ClassReader(original).accept(node, 0);
+        int replaced = 0;
+        for (MethodNode method : node.methods) {
+            for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+                 instruction != null; instruction = instruction.getNext()) {
+                if (!(instruction instanceof MethodInsnNode)) continue;
+                MethodInsnNode call = (MethodInsnNode) instruction;
+                if (call.owner.equals(PLAYER_UTILS) && call.name.equals("isPlayerHoldingWeapon")
+                        && call.desc.equals("()Z")) {
+                    call.name = "isPlayerHoldingSword";
+                    replaced++;
+                }
+            }
+        }
+        if (replaced != 2) throw new IllegalStateException("Expected two Auto Clicker weapon checks, found " + replaced);
+        ClassWriter writer = new ClassWriter(0);
+        node.accept(writer);
+        return writer.toByteArray();
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length != 3 && args.length != 5)
             throw new IllegalArgumentException("prepare input.jar output.jar | assemble prepared.jar classes mappings output.jar");
@@ -95,7 +121,8 @@ public final class PatchPhantomHudJar implements Opcodes {
             try (java.util.stream.Stream<Path> files = Files.list(classes)) {
                 files.filter(path -> path.getFileName().toString().endsWith(".class"))
                         .filter(path -> path.getFileName().toString().startsWith("PhantomHUD")
-                                || path.getFileName().toString().startsWith("HudSuffixes"))
+                                || path.getFileName().toString().startsWith("HudSuffixes")
+                                || path.getFileName().toString().startsWith("AutoClickCps"))
                         .forEach(path -> {
                             try {
                                 String name = PREFIX + path.getFileName();
@@ -118,10 +145,23 @@ public final class PatchPhantomHudJar implements Opcodes {
                             } catch (Exception e) { throw new IllegalStateException(e); }
                         });
             }
+            try (java.util.stream.Stream<Path> files = Files.list(Path.of(args[2]).resolve(APPLE))) {
+                files.filter(path -> path.getFileName().toString().equals("AppleModuleRow.class"))
+                        .forEach(path -> {
+                            try {
+                                String name = APPLE + path.getFileName();
+                                ClassWriter writer = new ClassWriter(0);
+                                new ClassReader(Files.readAllBytes(path)).accept(new ClassRemapper(writer, remapper), 0);
+                                replacements.put(name, writer.toByteArray());
+                            } catch (Exception e) { throw new IllegalStateException(e); }
+                        });
+            }
             if (!replacements.containsKey(PREFIX + "PhantomHUD.class")
                     || !replacements.containsKey(PREFIX + "HudSuffixes.class")
+                    || !replacements.containsKey(PREFIX + "AutoClickCps.class")
                     || !replacements.containsKey(FONT + "PhantomTTF.class")
-                    || !replacements.containsKey(FONT + "PhantomDiagnostics.class"))
+                    || !replacements.containsKey(FONT + "PhantomDiagnostics.class")
+                    || !replacements.containsKey(APPLE + "AppleModuleRow.class"))
                 throw new IllegalStateException("Missing HUD classes");
         }
         int moduleCount = 0;
@@ -135,6 +175,7 @@ public final class PatchPhantomHudJar implements Opcodes {
                 try (InputStream in = source.getInputStream(entry)) { data = in.readAllBytes(); }
                 if (name.equals(MODULE) && prepare) { data = api(data); moduleCount++; }
                 if (name.equals(HOST) && !prepare) { data = host(data); hostCount++; }
+                if (name.equals(LEFT_CLICKER) && !prepare) data = swordOnly(data);
                 if (replacements.containsKey(name)) data = replacements.remove(name);
                 ZipEntry copy = new ZipEntry(name);
                 copy.setTime(entry.getTime());

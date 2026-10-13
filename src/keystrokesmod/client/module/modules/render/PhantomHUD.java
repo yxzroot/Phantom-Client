@@ -63,6 +63,8 @@ public final class PhantomHUD extends Module {
     private static float headerWidth, badgeWidth;
     private static boolean fontFailed;
     private static PhantomHUD instance;
+    private static boolean layoutKnown, layoutRight;
+    private static float layoutX, layoutY, layoutWidth, layoutHeight;
     private final IdentityHashMap<Module, Row> states = new IdentityHashMap<>();
     private final ArrayList<Row> ordered = new ArrayList<>();
     private List<Module> roster;
@@ -243,6 +245,12 @@ public final class PhantomHUD extends Module {
         float py = bottom ? screen.getScaledHeight() - (float) yOffset.getInput() - listHeight * zoom
                 : (float) yOffset.getInput();
         if (idleFloat.isToggled()) py += (float) Math.sin(now / 950_000_000D) * .8F;
+        layoutKnown = true;
+        layoutRight = right;
+        layoutX = px;
+        layoutY = py;
+        layoutWidth = panelWidth * zoom;
+        layoutHeight = listHeight * zoom;
         int start = palette.getMode() == Palette.Client ? GuiModule.getEnabledTopRGB()
                 : rgb(gradientStart);
         int end = palette.getMode() == Palette.Client ? GuiModule.getEnabledBottomRGB()
@@ -360,6 +368,19 @@ public final class PhantomHUD extends Module {
             if (texture) GlStateManager.enableTexture2D();
             GlStateManager.resetColor();
         }
+    }
+
+    /** Default CPS anchor: eight pixels below the arraylist and aligned to its active edge. */
+    public static int defaultCpsX(int screenWidth, int cardWidth) {
+        if (!layoutKnown) return 4;
+        int value = Math.round(layoutRight ? layoutX + layoutWidth - cardWidth : layoutX);
+        return Math.max(0, Math.min(screenWidth - cardWidth, value));
+    }
+
+    public static int defaultCpsY(int screenHeight, int cardHeight) {
+        if (!layoutKnown) return 4;
+        int value = Math.round(layoutY + layoutHeight + 8);
+        return Math.max(0, Math.min(screenHeight - cardHeight, value));
     }
 
     private static void drawText(PhantomTTF font, String text, float x, float y, int color, int[] colors) {
