@@ -9,6 +9,10 @@ Minecraft 1.8.9 client patches developed against a locally installed Raven-deriv
 
 The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `edc6c36854d7a480c0460256efcc340b6fa72cd3248b3fdef636f16ff2cae3bf`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
 
+## Install with Wraith
+
+Wraith recognizes this repository through its root [`launcher.json`](launcher.json). Choose **Phantom Client** in Wraith, click **Install**, and select a local Minecraft Forge 1.8.9 profile. Wraith downloads the latest published GitHub Release and copies it into that profile’s `mods` folder; it never starts Minecraft automatically.
+
 For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft **1.8.9 Forge mods** folder, and avoid loading a second copy of the same Raven-derived mod at the same time. Compatibility with other clients, installations, or servers has not been established.
 
 ## Credits and origins

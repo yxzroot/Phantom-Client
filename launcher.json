@@ -1,0 +1,11 @@
+{
+  "displayName": "Phantom Client",
+  "description": "Minecraft 1.8.9 Forge client patches with Phantom HUD and controls.",
+  "install": {
+    "type": "mod-jar",
+    "asset": "Phantom-Client-1.8.9.jar"
+  },
+  "launch": {
+    "instructions": "1. Close Minecraft if it is running.\n2. In Wraith, click Install and choose your Forge 1.8.9 profile.\n3. Start Minecraft with that Forge profile.\n4. In a world, press Right Shift to open the Phantom menu."
+  }
+}
