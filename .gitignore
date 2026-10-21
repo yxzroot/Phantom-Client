@@ -1,9 +1,23 @@
-# Local builds and game files are not part of this source-only repository.
+# Keep local builds, private config backups and game files out of Git.
+backups/
 *.class
 *.jar
 !dist/Phantom-Client-1.8.9.jar
 *.zip
 build/
+build-swordglow/
+build-air-visuals/
+build-aurora/
+build-trail/
+build-aspect/
+build-island/
+build-colorpicker/
+build-preferences/
+build-worldparticles/
+build-killeffect/
+build-config/
+build-aimassist/
+build-airstrafe/
 classes/
 .gradle/
 .gradle-user/

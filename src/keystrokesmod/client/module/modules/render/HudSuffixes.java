@@ -32,7 +32,7 @@ public final class HudSuffixes {
             else if (name.equals("Right Clicker")) state.setting = module.getSettingByName("RightCPS");
             else if (name.equals("Legit Scaffold")) {
                 state.setting = module.getSettingByName("Placement Delay (ms)");
-                state.extra = module.getSettingByName("Auto Walk");
+                state.extra = module.getSettingByName("Auto Aim");
             } else if (name.equals("KeepSprint")) state.setting = module.getSettingByName("Slow %");
             else if (name.equals("Reach")) state.setting = module.getSettingByName("Reach (Blocks)");
             if (state.setting == null) {
@@ -57,7 +57,7 @@ public final class HudSuffixes {
                 && flag == state.flag) return state.suffix;
         state.min = min; state.max = max; state.flag = flag;
         if (module.getName().equals("Legit Scaffold")) {
-            state.suffix = (flag ? "Auto " : "Legit ") + (Double.isNaN(min) ? "" : format(min) + "ms");
+            state.suffix = flag ? "Legit Aim" : "Legit";
         } else if (module.getName().equals("KeepSprint") && !Double.isNaN(min)) {
             state.suffix = format((100 - min) / 100);
         } else if (setting instanceof DoubleSliderSetting) {

@@ -1,0 +1,43 @@
+package keystrokesmod.client.module.modules.render.aurora;
+
+/** GLSL 1.20, bounded work: no geometry rebuild, texture scrolling or frame allocations. */
+final class AuroraShaders {
+    static final String VERTEX="#version 120\n"
+        +"uniform float clock;uniform float curtain;uniform float folds;uniform float bloom;uniform int kind;varying vec4 c;varying vec2 uv;\n"
+        +"void main(){vec4 p=gl_Vertex;c=gl_Color;uv=gl_MultiTexCoord0.xy;"
+        +"if(kind==0){uv=c.rg;float u=uv.x;float v=uv.y;float seed=curtain*2.173;"
+        +"float fold=sin(u*9.0+clock*0.17+seed)*2.4+sin(u*22.0-clock*0.23+seed)*0.8+sin(u*47.0+clock*0.31)*0.18;"
+        +"p.x+=fold*folds*(0.6+v*1.6);p.z+=(cos(u*7.0-clock*0.10+seed+v*2.2)*2.5+sin(u*19.0+clock*0.15)*0.6)*folds;"
+        +"p.y+=sin(u*12.0-clock*0.16+seed)*0.65*folds;p.xyz*=1.0+bloom*0.022;}"
+        +"if(kind==1)c.a*=0.7+0.3*sin(clock*(0.25+c.b*0.6)+dot(p.xyz,vec3(8.3,3.7,1.9)));"
+        +"gl_Position=gl_ModelViewProjectionMatrix*p;}";
+    static final String FRAGMENT="#version 120\n"
+        +"uniform float clock;uniform float realClock;uniform float curtain;uniform float power;uniform float opacity;uniform float bloom;"
+        +"uniform int kind;uniform int palette;uniform int cloudMode;uniform vec3 theme;uniform sampler2D galaxy;varying vec4 c;varying vec2 uv;\n"
+        +"float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}"
+        +"float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}"
+        +"vec3 rainbow(float h){return clamp(abs(fract(h+vec3(0.0,0.6667,0.3333))*6.0-3.0)-1.0,0.0,1.0);}"
+        +"void main(){"
+        +"if(kind==3){vec4 s=texture2D(galaxy,uv);float edge=smoothstep(0.0,0.22,uv.y)*(1.0-smoothstep(0.78,1.0,uv.y));gl_FragColor=vec4(s.rgb,edge*opacity*0.68);return;}"
+        +"if(kind==4){vec2 p=vec2(uv.x*45.0+clock*0.012,uv.y*8.0);float n=noise(p)*0.6+noise(p*2.5)*0.28+noise(p*6.0)*0.12;"
+        +"float a=smoothstep(0.47,0.79,n)*sin(uv.y*3.14159);vec3 col=cloudMode==1?vec3(0.05,0.10,0.18):vec3(0.13,0.25,0.30);"
+        +"col+=theme*max(0.0,n-0.6)*0.22;gl_FragColor=vec4(col,a*opacity*0.30);return;}"
+        +"if(kind==5){float d=length((uv-0.5)*2.0);float disc=1.0-smoothstep(0.37,0.40,d);float halo=exp(-d*d*9.0)*0.13;"
+        +"float detail=0.8+noise(uv*23.0)*0.16;gl_FragColor=vec4(vec3(0.68,0.77,0.94)*detail,(disc*0.80+halo)*opacity);return;}"
+        +"if(kind==1){float d=length((uv-0.5)*2.0);float a=(1.0-smoothstep(0.05,0.93,d));gl_FragColor=vec4(c.rgb,c.a*a*opacity);return;}"
+        +"if(kind==2){gl_FragColor=vec4(c.rgb,c.a*opacity);return;}"
+        +"float u=uv.x,v=uv.y;vec3 core=vec3(0.10,1.0,0.43);"
+        +"if(palette==1)core=vec3(0.82,0.20,0.98);if(palette==2)core=rainbow(u*0.52+clock*0.012+curtain*0.13);if(palette==3)core=theme;"
+        +"vec3 col=mix(vec3(1.0,0.09,0.57),core,smoothstep(0.015,0.13,v));"
+        +"col=mix(col,vec3(0.08,0.64,0.74),smoothstep(0.27,0.56,v));col=mix(col,vec3(0.29,0.18,0.77),smoothstep(0.52,0.84,v));"
+        +"col=mix(col,vec3(0.68,0.08,0.14),smoothstep(0.84,1.0,v));"
+        +"float n=noise(vec2(u*125.0+sin(u*19.0+clock*0.12)*1.2,clock*0.055+curtain*7.0+v*0.2));"
+        +"float width=0.05+noise(vec2(u*23.0,curtain))*0.12;float ray=pow(max(0.0,1.0-abs(n-0.55)/(width+bloom*0.10)),2.0);"
+        +"float finer=noise(vec2(u*450.0-clock*0.04,v*0.12+curtain));ray*=0.6+finer*0.6;"
+        +"float cycle=mod(realClock+curtain*5.7,29.0);float envelope=smoothstep(19.0,20.4,cycle)*(1.0-smoothstep(24.0,26.0,cycle));"
+        +"float roll=exp(-pow((u-(cycle-19.0)/7.0)*4.0,2.0))*envelope;"
+        +"float a=(0.115+ray*0.34)*(1.0-smoothstep(0.3,1.0,v))*(0.8+roll*2.4);"
+        +"a+=0.15*exp(-pow((v-0.024)*88.0,2.0));a+=0.018*smoothstep(0.78,0.9,v);"
+        +"a*=smoothstep(0.0,0.012,v)*(1.0-smoothstep(0.93,1.0,v))*c.a;"
+        +"gl_FragColor=vec4(col,a*power*opacity*(bloom>0.5?0.20:1.0));}";
+}

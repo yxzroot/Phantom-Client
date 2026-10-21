@@ -24,10 +24,9 @@ import net.minecraft.client.gui.Gui;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Apple module card with a deliberately disabled coming-soon section for Legit Scaffold. */
+/** Apple module card. */
 public class AppleModuleRow {
     private static final int ROW_H = 32;
-    private static final int LEGIT_READY_SETTINGS = 3;
     final Module mod;
     private final List<ASettingComponent> settings = new ArrayList<>();
     private ABind bindRow;
@@ -81,35 +80,17 @@ public class AppleModuleRow {
         if (!expanded) return;
         Gui.drawRect(x + 8, y + ROW_H, x + width - 8, y + ROW_H + 1, 0xFF2A2A2A);
         int settingY = y + ROW_H + 6;
-        int unavailableTop = -1;
         for (int index = 0; index < settings.size(); index++) {
             ASettingComponent component = settings.get(index);
             if (!component.visable) continue;
-            if (isLegitScaffoldSoon() && index == LEGIT_READY_SETTINGS) unavailableTop = settingY;
             component.setPosition(x + 16, settingY, width - 32);
             component.draw(mouseX, mouseY);
             settingY += component.getHeight() + 4;
         }
-        if (isLegitScaffoldSoon() && unavailableTop >= 0) drawSoonOverlay(unavailableTop, settingY - 4);
         if (bindRow != null) {
             bindRow.setPosition(x + 16, settingY, width - 32);
             bindRow.draw(mouseX, mouseY);
         }
-    }
-
-    private boolean isLegitScaffoldSoon() { return "Legit Scaffold".equals(mod.getName()); }
-
-    /** A cheap frosted overlay: it visually mutes unfinished controls without a costly framebuffer blur. */
-    private void drawSoonOverlay(int top, int bottom) {
-        int left = x + 10, right = x + width - 10;
-        RenderUtils.drawRoundedRect(left, top - 2, right, bottom + 2, 6, 0xB5141820);
-        RenderUtils.drawRoundedRect(left + 2, top, right - 2, bottom, 5, 0x32191E28);
-        for (int line = top + 8; line < bottom; line += 10)
-            RenderUtils.drawRoundedRect(left + 8, line, right - 8, line + 1, .5F, 0x14FFFFFF);
-        String label = "SOON...";
-        float textWidth = (float) FontUtil.poppinsBold.getStringWidth(label);
-        float textY = top + Math.max(4, (bottom - top - FontUtil.poppinsBold.getHeight()) / 2F);
-        FontUtil.poppinsBold.drawSmoothString(label, left + (right - left - textWidth) / 2F, textY, 0xFFDDE5F0);
     }
 
     private String buildDescription() {
@@ -184,12 +165,9 @@ public class AppleModuleRow {
         }
         if (mouseY <= y + ROW_H || !expanded) return true;
         int settingY = y + ROW_H + 6;
-        for (int index = 0; index < settings.size(); index++) {
-            ASettingComponent component = settings.get(index);
+        for (ASettingComponent component : settings) {
             if (!component.visable) continue;
             int height = component.getHeight() + 4;
-            if (isLegitScaffoldSoon() && index >= LEGIT_READY_SETTINGS
-                    && mouseY >= settingY && mouseY < settingY + height) return true;
             if (component.mouseDown(mouseX, mouseY, button)) return true;
             settingY += height;
         }
@@ -198,15 +176,11 @@ public class AppleModuleRow {
     }
 
     public void mouseReleased(int mouseX, int mouseY, int button) {
-        for (int index = 0; index < settings.size(); index++)
-            if (!(isLegitScaffoldSoon() && index >= LEGIT_READY_SETTINGS))
-                settings.get(index).mouseReleased(mouseX, mouseY, button);
+        for (ASettingComponent component : settings) component.mouseReleased(mouseX, mouseY, button);
     }
 
     public void keyTyped(char character, int keyCode) {
-        for (int index = 0; index < settings.size(); index++)
-            if (!(isLegitScaffoldSoon() && index >= LEGIT_READY_SETTINGS))
-                settings.get(index).keyTyped(character, keyCode);
+        for (ASettingComponent component : settings) component.keyTyped(character, keyCode);
         if (bindRow != null) bindRow.keyTyped(character, keyCode);
     }
 

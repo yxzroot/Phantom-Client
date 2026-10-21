@@ -1,0 +1,56 @@
+Phantom: AirClient in-game visual adaptation
+Modification date: 2026-10-19
+
+Source: https://github.com/lmx0721/AirClient
+Inspected input: AirClient-main.zip from the user's Downloads directory.
+Upstream authors/attribution: AirClient / lmx0721 and contributors;
+LiquidBounce / CCBlueX (2015-2026) and contributors.
+Watermark.kt and RoundedUtil.kt also explicitly credit FDPClient:
+https://github.com/SkidderMC/FDPClient
+NewArrayList.kt contains the attribution comment "skid Opai".
+These attributions describe the source's stated origins; they do not establish
+additional permissions for unrelated assets or code.
+
+License: GNU General Public License version 3 (GPLv3), with GPLv3-or-later
+notices in inherited material. The original AirClient LICENSE is included at
+licenses/AirClient-LICENSE. Phantom's license is included at LICENSE.
+This software is provided WITHOUT ANY WARRANTY; see those licenses.
+
+Adapted material and destinations:
+- utils/client/ClientThemesUtils.kt: the 284 named RGB endpoint pairs in its
+  cached themeColorMap -> render/airvisuals/AirPalette.java. Immutable Java enum;
+  no repeated map construction, Kotlin runtime or LiquidBounce settings.
+- ClientThemesUtils.kt / features/module/modules/client/ThemeManager.kt:
+  palette selection and two-color theme behavior -> render/airvisuals/AirTheme.java.
+  Timing rewritten as monotonic, interruptible cross-fades and delta-time motion.
+- ui/client/hud/element/elements/NewArrayList.kt (source comment: "skid Opai"):
+  sorted animated rows, rounded backgrounds, theme/rainbow accents and side stripes
+  -> render/AirHudRenderer.java. Rewritten for Phantom modules, HUD values and fonts;
+  roster/suffix sampling at 10Hz; persistent animation state; no AirClient module APIs.
+- ui/client/hud/element/elements/Watermark.kt (credits FDPClient): rounded brand
+  card with name/ping/time information -> render/AirHudRenderer.java. PHANTOM
+  branding retained; null checks added; metrics cached; FPS and optional XYZ/BPS.
+- utils/render/RoundedUtil.kt (credits FDPClient): precomputed arcs and rounded
+  gradient drawing approach -> render/airvisuals/AirDraw.java. Bounded shadow rings,
+  input validation, scoped GL state and no framebuffer/shader allocation.
+
+Integration changes in PhantomHUD.java and SwordGlow.java route existing Phantom
+settings, configuration and in-game theme colors to those helpers. They do not
+import AirClient's module, setting, event, configuration or gameplay frameworks.
+
+Excluded by user request: all ClickGUI variants, widgets and the HUD editor.
+Also excluded: combat/movement/player modules, target HUD combat dependencies,
+network commands/cloud configurations, accounts, music, logos, fonts and images.
+No new font assets or shader assets were copied. Live HUD blur and framebuffer
+bloom/shadows were omitted; rounded translucent cards and bounded shadow rings
+provide the adapted presentation without importing those risky render pipelines.
+
+Distribution requirements:
+Preserve copyright/license/no-warranty notices and attribution, identify changes
+and their date, provide the GPL license, and license the covered combined work
+under the applicable GPL terms. If conveying binaries, provide complete
+Corresponding Source by a GPL-permitted method, including necessary build scripts.
+Attribution or patch sources alone do not replace that obligation. This repository
+describes itself as incomplete patch sources for a pre-existing Raven-derived JAR;
+obtain the complete corresponding base sources before distributing a combined JAR.
+Local private modification does not by itself require public publication.

@@ -186,6 +186,20 @@ public final class PhantomTTF {
         }
     }
 
+    /** Fast HUD-only path: caller owns GL_PUSH_ATTRIB and restores all state once per overlay. */
+    public void drawHud(String text, float x, float y, int color) {
+        if (text == null || text.isEmpty()) return;
+        ensure();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDepthMask(false);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+        pass(text, x, y, color, null);
+    }
+
     private void pass(String text, float x, float y, int color, int[] colors) {
         final int raster = scale * 3;
         final float pad = Math.max(2, raster * 2) / (float) raster;

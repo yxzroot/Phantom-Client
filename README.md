@@ -7,7 +7,17 @@ Minecraft 1.8.9 client patches developed against a locally installed Raven-deriv
 [![Download latest JAR](https://img.shields.io/badge/Download-latest%20JAR-385A45?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/releases/latest/download/Phantom-Client-1.8.9.jar)
 [![Download latest patch sources ZIP](https://img.shields.io/badge/Download-latest%20patch%20sources%20ZIP-344B73?style=for-the-badge)](https://github.com/yxzroot/Phantom-Client/archive/refs/heads/main.zip)
 
-The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `edc6c36854d7a480c0460256efcc340b6fa72cd3248b3fdef636f16ff2cae3bf`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
+The repository's copy is at [`dist/Phantom-Client-1.8.9.jar`](dist/Phantom-Client-1.8.9.jar); its SHA-256 is `b2fa7f51a5589a3122336ddae9503513da0811a765040a1b65575244223f14c7`. The source ZIP button downloads the **latest `main` branch**, including the JAR and Phantom patch sources. It does **not** include the complete original Raven B+/B++ source tree.
+
+## Current build
+
+- Dynamic Island with compact and expanded lyrics, Unicode text rendering, playback synchronization and a local Riff bridge.
+- SkyChanger with animated skies, aurora, Overcast Dusk, additional sky styles, stars, cloud controls and local world-border visibility.
+- SwordGlow, Trail, WorldParticles and KillEffect with configurable colors and styles.
+- AspectRatio with a world-only projection override; AimAssist updates and smoother Airstrafe direction changes.
+- Shared color picker, GUI preferences, config creation/listing/scrolling fixes and the existing HUD integration.
+
+Feature notes and targeted build/test scripts are included in the root Markdown files and `tools/`. See [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and `licenses/` for the adapted AirClient visual code's attribution and license details.
 
 ## Install with Wraith
 
@@ -24,7 +34,7 @@ For the tested setup, close Minecraft, place the JAR in Lunar Client's Minecraft
 
 ## Patch sources
 
-The files under `src/` cover the locally developed Phantom HUD and Poppins TTF renderer, bridge/scaffold helpers, Freelook integration, player-only hitbox outline, compact animated CPS pill and draggable editor, color-picker UI, HUD animation, click-sound changes, and related mixins. The Apple settings row includes the disabled “SOON...” overlay used by unfinished Legit Scaffold controls. `tools/` contains utilities for MCP-to-SRG remapping, Phantom HUD patching, selected class-file validation, and the Auto Clicker’s sword-only weapon filter.
+The files under `src/` cover the locally developed Phantom HUD and Poppins TTF renderer, bridge/scaffold helpers (including the Legit Scaffold Auto Aim controller), the retained-state GRAVE ClickGUI rebuild, Freelook integration, player-only hitbox outline, compact animated CPS pill and draggable editor, color-picker UI, HUD animation, click-sound changes, and related mixins. `tools/` contains utilities for MCP-to-SRG remapping, patching mapped classes into an installed JAR, Phantom HUD patching, selected class-file validation, and the Auto Clicker’s sword-only weapon filter.
 
 These sources describe changes to a specific **already patched** Raven-compatible mod. They reference classes and hooks not all present in a clean upstream Raven B++ checkout, notably its Apple GUI and local mixin registration. Additional porting and integration are required to build them against another version. Do not use the tools to redistribute upstream binaries without checking upstream permissions and licenses.
 

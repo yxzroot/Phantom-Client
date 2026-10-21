@@ -2,16 +2,23 @@ package keystrokesmod.client.module.modules.movement;
 
 import com.google.common.eventbus.Subscribe;
 import keystrokesmod.client.event.impl.GameLoopEvent;
+import keystrokesmod.client.event.impl.Render2DEvent;
 import keystrokesmod.client.main.Raven;
 import keystrokesmod.client.module.Module;
 import keystrokesmod.client.module.modules.player.AutoPlace;
 import keystrokesmod.client.module.modules.player.RightClicker;
 import keystrokesmod.client.module.setting.impl.DescriptionSetting;
+import keystrokesmod.client.module.setting.impl.ComboSetting;
+import keystrokesmod.client.module.setting.impl.DoubleSliderSetting;
 import keystrokesmod.client.module.setting.impl.SliderSetting;
 import keystrokesmod.client.module.setting.impl.TickSetting;
+import keystrokesmod.client.utils.font.FontUtil;
 import net.minecraft.block.Block;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
@@ -31,11 +38,28 @@ public final class LegitScaffold extends Module {
     private final SliderSetting edgeDistance = new SliderSetting("Edge Distance", 0.10, 0.07, 0.10, 0.01);
     private final SliderSetting unsneakDelay = new SliderSetting("Unsneak Delay (ms)", 30, 0, 300, 10);
     private final SliderSetting placementDelay = new SliderSetting("Placement Delay (ms)", 60, 50, 300, 10);
-    private final TickSetting autoAim = new TickSetting("Auto Aim", true);
-    private final SliderSetting aimSpeed = new SliderSetting("Aim Speed (deg/tick)", 28, 8, 60, 1);
-    private final SliderSetting aimCone = new SliderSetting("Aim Cone (degrees)", 60, 5, 180, 1);
+    private final TickSetting autoAim = new TickSetting("Auto Aim", false);
+    private final ComboSetting<AutoAimController.AimMode> aimMode = new ComboSetting<>("Aim Mode", AutoAimController.AimMode.BRIDGE_ANGLE);
+    private final ComboSetting<AutoAimController.BridgeDirection> bridgeDirection = new ComboSetting<>("Bridge Direction", AutoAimController.BridgeDirection.BACKWARD);
+    private final TickSetting snapYaw = new TickSetting("Snap Yaw to 45°", true);
+    private final DoubleSliderSetting pitchRange = new DoubleSliderSetting("Pitch Range", 74, 82, 45, 89, 1);
+    private final TickSetting movementCorrection = new TickSetting("Movement Correction", true);
+    private final SliderSetting aimSpeed = new SliderSetting("Aim Speed (deg/s)", 360, 60, 720, 5);
+    private final SliderSetting randomization = new SliderSetting("Randomization (%)", 15, 0, 35, 1);
+    private final DoubleSliderSetting reactionDelay = new DoubleSliderSetting("Reaction Delay (ticks)", 0, 2, 0, 10, 1);
+    private final ComboSetting<AutoAimController.AimPointMode> aimPoint = new ComboSetting<>("Aim Point", AutoAimController.AimPointMode.CENTER);
+    private final SliderSetting placeTolerance = new SliderSetting("Place Tolerance (degrees)", 2, .25, 6, .25);
+    private final SliderSetting maxTurnPerTick = new SliderSetting("Max Turn Per Tick", 30, 3, 45, 1);
+    private final SliderSetting fovLimit = new SliderSetting("FOV Limit (degrees)", 120, 15, 180, 1);
+    private final TickSetting mouseOverride = new TickSetting("Mouse Override", true);
+    private final SliderSetting overrideTimeout = new SliderSetting("Override Timeout (ms)", 400, 100, 1500, 25);
+    private final TickSetting pauseAttacking = new TickSetting("Pause While Attacking", true);
+    private final TickSetting onlyWhenMoving = new TickSetting("Only When Moving", false);
+    private final TickSetting debugOverlay = new TickSetting("Debug Overlay", false);
     private final TickSetting autoWalk = new TickSetting("Auto Walk", true);
     private final TickSetting visibleFacePlace = new TickSetting("Visible Face Placement", false);
+    private final AutoAimController autoAimController = new AutoAimController();
+    private final AutoAimController.Config aimConfig = new AutoAimController.Config();
 
     private World world;
     private EntityPlayerSP player;
@@ -43,9 +67,6 @@ public final class LegitScaffold extends Module {
     private int ownedSneakKey;
     private long safeSince;
     private long nextPlacement;
-    private long userAimUntil;
-    private boolean aimedLastTick;
-    private float lastAimYaw, lastAimPitch;
     private boolean ownsForward;
     private int ownedForwardKey;
     private float travelYaw;
@@ -56,7 +77,10 @@ public final class LegitScaffold extends Module {
         instance = this;
         withDescription("Guards the edge, visibly aims and places with normal item use; stops if no face is reachable.");
         registerSettings(new DescriptionSetting(getDescription()), placementDelay, edgeDistance, unsneakDelay,
-                autoAim, aimSpeed, aimCone, autoWalk, visibleFacePlace);
+                autoAim, aimMode, bridgeDirection, snapYaw, pitchRange, movementCorrection, aimSpeed,
+                randomization, reactionDelay, aimPoint, placeTolerance, maxTurnPerTick, fovLimit,
+                mouseOverride, overrideTimeout, pauseAttacking, onlyWhenMoving, debugOverlay,
+                autoWalk, visibleFacePlace);
     }
 
     @Override
@@ -73,9 +97,8 @@ public final class LegitScaffold extends Module {
         releaseSneak();
         releaseForward();
         nextPlacement = 0L;
-        userAimUntil = 0L;
-        aimedLastTick = false;
         restoringHeading = false;
+        autoAimController.reset();
         world = null;
         player = null;
     }
@@ -93,6 +116,7 @@ public final class LegitScaffold extends Module {
             releaseSneak();
             releaseForward();
             nextPlacement = 0L;
+            autoAimController.reset();
             return;
         }
 
@@ -128,33 +152,38 @@ public final class LegitScaffold extends Module {
                 && !physicallyHeld(mc.gameSettings.keyBindUseItem.getKeyCode());
         if (walkingAutomatically)
             updateForward(canPlace && safeToWalk(movement[0], movement[1]));
-        if (!canPlace)
+        if (!canPlace) {
+            autoAimController.reset();
             return;
+        }
 
         long now = System.nanoTime();
-        if (aimedLastTick && (Math.abs(MathHelper.wrapAngleTo180_float(player.rotationYaw - lastAimYaw)) > 0.5F
-                || Math.abs(player.rotationPitch - lastAimPitch) > 0.5F))
-            userAimUntil = now + 200_000_000L;
-        aimedLastTick = false;
-        if (walkingAutomatically && restoringHeading) {
+        if (!autoAim.isToggled() && walkingAutomatically && restoringHeading) {
             updateForward(false);
             if (Math.abs(MathHelper.wrapAngleTo180_float(travelYaw - player.rotationYaw)) > 3.0F) {
-                if (now >= userAimUntil) turnToward(travelYaw, player.rotationPitch);
                 return;
             }
             restoringHeading = false;
         }
-        if (now < nextPlacement)
-            return;
-        MovingObjectPosition sight = validTarget(held, (ItemBlock) held.getItem(), movement);
-        if (sight == null) {
-            if (nearEdge(movement[0], movement[1])) {
-                MovingObjectPosition face = findVisibleFace(held, (ItemBlock) held.getItem(), movement);
-                if (face != null && autoAim.isToggled()) {
-                    if (walkingAutomatically) updateForward(false);
-                    if (now >= userAimUntil) aimAtVisibleFace(face.hitVec, walkingAutomatically);
-                    return; // Wait for the ordinary crosshair ray to reach the face.
-                }
+        ItemBlock item = (ItemBlock) held.getItem();
+        MovingObjectPosition sight;
+        if (autoAim.isToggled()) {
+            // Cache a candidate once on the client tick. Camera work happens from the render hook.
+            MovingObjectPosition candidate = validTarget(held, item, movement);
+            if (candidate == null)
+                candidate = findVisibleFace(held, item, movement,
+                        aimMode.getMode() == AutoAimController.AimMode.AUTO);
+            autoAimController.cacheTarget(player, candidate, movement[0], movement[1], autoAimConfig());
+            if (now < nextPlacement) return;
+            sight = autoAimController.verifiedHit(player, world, aimConfig);
+            if (sight == null || !validVerifiedTarget(held, item, movement, sight)) return;
+        } else {
+            // Keep the pre-Auto-Aim placement path intact when the new layer is off.
+            autoAimController.reset();
+            if (now < nextPlacement) return;
+            sight = validTarget(held, item, movement);
+            if (sight == null && nearEdge(movement[0], movement[1])) {
+                MovingObjectPosition face = findVisibleFace(held, item, movement, false);
                 if (face != null && visibleFacePlace.isToggled()) sight = face;
             }
             if (sight == null) return;
@@ -166,7 +195,7 @@ public final class LegitScaffold extends Module {
         nextPlacement = now + (long) (placementDelay.getInput() * 1_000_000L);
         if (placed) {
             player.swingItem();
-            if (walkingAutomatically) {
+            if (walkingAutomatically && !autoAim.isToggled()) {
                 restoringHeading = true;
                 updateForward(false);
             }
@@ -224,7 +253,8 @@ public final class LegitScaffold extends Module {
     }
 
     /** Uses only ordinary block interaction on a face a real ray from the eyes can reach. */
-    private MovingObjectPosition findVisibleFace(ItemStack held, ItemBlock item, double[] movement) {
+    private MovingObjectPosition findVisibleFace(ItemStack held, ItemBlock item, double[] movement,
+                                                 boolean prioritizeRotation) {
         AxisAlignedBB body = player.getEntityBoundingBox();
         Vec3 eyes = player.getPositionEyes(1.0F);
         double reach = mc.playerController.getBlockReachDistance();
@@ -260,6 +290,15 @@ public final class LegitScaffold extends Module {
                         if (ray == null || !support.equals(ray.getBlockPos()) || ray.sideHit != face
                                 || ray.hitVec == null || eyes.distanceTo(ray.hitVec) > reach) continue;
                         double score = Math.abs(forward - 0.9) + Math.abs(dx * movement[1] - dz * movement[0]);
+                        if (prioritizeRotation) {
+                            double hitX = ray.hitVec.xCoord - eyes.xCoord;
+                            double hitY = ray.hitVec.yCoord - eyes.yCoord;
+                            double hitZ = ray.hitVec.zCoord - eyes.zCoord;
+                            float yaw = (float) Math.toDegrees(Math.atan2(hitZ, hitX)) - 90.0F;
+                            float pitch = (float) -Math.toDegrees(Math.atan2(hitY, Math.sqrt(hitX * hitX + hitZ * hitZ)));
+                            score = Math.abs(MathHelper.wrapAngleTo180_float(yaw - player.rotationYaw))
+                                    + Math.abs(pitch - player.rotationPitch);
+                        }
                         if (score < bestScore) {
                             bestScore = score;
                             best = ray;
@@ -276,7 +315,8 @@ public final class LegitScaffold extends Module {
         AxisAlignedBB body = player.getEntityBoundingBox();
         // Forward is camera-relative. Never walk while aiming away from our
         // locked travel direction, even if the ground probe is supported.
-        if (Math.abs(MathHelper.wrapAngleTo180_float(travelYaw - player.rotationYaw)) > 9.0F)
+        if (!autoAim.isToggled()
+                && Math.abs(MathHelper.wrapAngleTo180_float(travelYaw - player.rotationYaw)) > 9.0F)
             return false;
         if (supported(player.posX + dx * 0.50, player.posZ + dz * 0.50, body.minY))
             return true;
@@ -314,9 +354,13 @@ public final class LegitScaffold extends Module {
         LegitScaffold scaffold = instance;
         if (scaffold == null || !scaffold.isEnabled() || scaffold.player == null
                 || scaffold.world == null || scaffold.player != mc.thePlayer
-                || scaffold.world != mc.theWorld || input != scaffold.player.movementInput
-                || mc.currentScreen != null || !mc.inGameHasFocus
-                || scaffold.moduleEnabled(BridgeHelper.class)) return;
+                 || scaffold.world != mc.theWorld || input != scaffold.player.movementInput
+                 || mc.currentScreen != null || !mc.inGameHasFocus
+                 || scaffold.moduleEnabled(BridgeHelper.class)) return;
+        if (scaffold.autoAim.isToggled()) {
+            scaffold.autoAimController.captureInputIntent(input);
+            scaffold.autoAimController.correctMovementInput(input, scaffold.player, scaffold.autoAimConfig());
+        }
         double[] movement = scaffold.ownsForward
                 ? direction(scaffold.travelYaw, 1, 0) : scaffold.movementDirection();
         boolean protect = movement != null && scaffold.nearEdge(movement[0], movement[1]);
@@ -376,30 +420,109 @@ public final class LegitScaffold extends Module {
         return ray;
     }
 
-    /** Turn the real camera toward the ray-visible placement face. */
-    private void aimAtVisibleFace(Vec3 hit, boolean walkingAutomatically) {
-        Vec3 eyes = player.getPositionEyes(1.0F);
-        double deltaX = hit.xCoord - eyes.xCoord;
-        double deltaY = hit.yCoord - eyes.yCoord;
-        double deltaZ = hit.zCoord - eyes.zCoord;
-        float yaw = (float) Math.toDegrees(Math.atan2(-deltaX, deltaZ));
-        float pitch = (float) -Math.toDegrees(Math.atan2(deltaY,
-                Math.sqrt(deltaX * deltaX + deltaZ * deltaZ)));
-        float yawDiff = MathHelper.wrapAngleTo180_float(yaw - player.rotationYaw);
-        float pitchDiff = pitch - player.rotationPitch;
-        if (!walkingAutomatically && Math.hypot(yawDiff, pitchDiff) > aimCone.getInput()) return;
-        turnToward(yaw, pitch);
+    /** Rechecks the controller's real camera ray against the unchanged placement geometry rules. */
+    private boolean validVerifiedTarget(ItemStack held, ItemBlock item, double[] movement, MovingObjectPosition ray) {
+        if (ray == null || ray.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
+                || ray.getBlockPos() == null || ray.sideHit == null || ray.hitVec == null) return false;
+        double reach = mc.playerController.getBlockReachDistance();
+        if (player.getPositionEyes(1.0F).distanceTo(ray.hitVec) > reach + 0.01D) return false;
+        BlockPos support = ray.getBlockPos();
+        BlockPos destination = support.offset(ray.sideHit);
+        if (!world.isBlockLoaded(destination) || !world.isBlockModifiable(player, destination)
+                || !player.canPlayerEdit(destination, ray.sideHit, held)
+                || !item.canPlaceBlockOnSide(world, support, ray.sideHit, player, held)) return false;
+        Block existing = world.getBlockState(destination).getBlock();
+        if (!existing.isReplaceable(world, destination)) return false;
+        AxisAlignedBB body = player.getEntityBoundingBox();
+        if (destination.getY() != MathHelper.floor_double(body.minY - 0.05D)) return false;
+        double x = destination.getX() + 0.5D - player.posX;
+        double z = destination.getZ() + 0.5D - player.posZ;
+        double aheadX = x - movement[0] * 0.7D;
+        double aheadZ = z - movement[1] * 0.7D;
+        if (x * movement[0] + z * movement[1] < 0.05D
+                || aheadX * aheadX + aheadZ * aheadZ > 2.0D) return false;
+        AxisAlignedBB blockSpace = new AxisAlignedBB(destination, destination.add(1, 1, 1));
+        return !blockSpace.intersectsWith(body) && world.checkNoEntityCollision(blockSpace);
     }
 
-    private void turnToward(float yaw, float pitch) {
-        float yawDiff = MathHelper.wrapAngleTo180_float(yaw - player.rotationYaw);
-        float pitchDiff = MathHelper.clamp_float(pitch, -90, 90) - player.rotationPitch;
-        float step = (float) aimSpeed.getInput();
-        player.setAngles(Math.max(-step, Math.min(step, yawDiff)) / 0.15F,
-                -Math.max(-step, Math.min(step, pitchDiff)) / 0.15F);
-        lastAimYaw = player.rotationYaw;
-        lastAimPitch = player.rotationPitch;
-        aimedLastTick = true;
+    /** Called by the existing EntityRenderer mixin at render-frame cadence. */
+    public static void renderFrame(float partialTicks) {
+        LegitScaffold scaffold = instance;
+        if (scaffold == null || !scaffold.isEnabled() || !scaffold.autoAim.isToggled()) return;
+        if (scaffold.player == null || scaffold.world == null || scaffold.player != mc.thePlayer
+                || scaffold.world != mc.theWorld || scaffold.player.isDead || mc.currentScreen != null
+                || !mc.inGameHasFocus) {
+            scaffold.autoAimController.reset();
+            return;
+        }
+        int attack = mc.gameSettings.keyBindAttack.getKeyCode();
+        scaffold.autoAimController.render(scaffold.player, scaffold.world, partialTicks,
+                scaffold.autoAimConfig(), physicallyHeld(attack));
+    }
+
+    /** Observes vanilla's real Entity.turn mouse deltas; it never cancels the user's input. */
+    public static void observeMouseTurn(Entity entity, float yaw, float pitch) {
+        LegitScaffold scaffold = instance;
+        if (scaffold == null || !scaffold.isEnabled() || !scaffold.autoAim.isToggled()
+                || entity != mc.thePlayer) return;
+        scaffold.autoAimController.observeMouseTurn(yaw, pitch, scaffold.autoAimConfig());
+    }
+
+    @Subscribe
+    public void onRender2D(Render2DEvent event) {
+        if (!debugOverlay.isToggled() || !autoAim.isToggled() || player == null || world == null) return;
+        ScaledResolution resolution = new ScaledResolution(mc);
+        ScaffoldPlacementTarget target = autoAimController.target();
+        String targetText = target.valid ? target.support + " " + target.face : "none";
+        drawDebug("Scaffold Aim: " + autoAimController.state(), 5, 5, 0xFFFFFFFF);
+        drawDebug(String.format(java.util.Locale.ROOT, "error %.2f / %.2f", autoAimController.yawError(), autoAimController.pitchError()), 5, 16, 0xFFB9D7FF);
+        drawDebug("target: " + targetText + (autoAimController.temporaryPitchRange() ? " (pitch widened)" : ""), 5, 27, 0xFFB9D7FF);
+        int centerX = resolution.getScaledWidth() / 2;
+        int centerY = resolution.getScaledHeight() / 2;
+        int endX = centerX + (int) Math.max(-90, Math.min(90, autoAimController.yawError() * 4.0F));
+        int endY = centerY + (int) Math.max(-70, Math.min(70, autoAimController.pitchError() * 4.0F));
+        drawDebugLine(centerX, centerY, endX, endY, 0xCC76D7FF);
+    }
+
+    private AutoAimController.Config autoAimConfig() {
+        aimConfig.aimMode = aimMode.getMode();
+        aimConfig.bridgeDirection = bridgeDirection.getMode();
+        aimConfig.aimPointMode = aimPoint.getMode();
+        aimConfig.snapYaw = snapYaw.isToggled();
+        aimConfig.movementCorrection = movementCorrection.isToggled();
+        aimConfig.mouseOverride = mouseOverride.isToggled();
+        aimConfig.pauseAttacking = pauseAttacking.isToggled();
+        aimConfig.onlyMoving = onlyWhenMoving.isToggled();
+        aimConfig.pitchMin = pitchRange.getInputMin();
+        aimConfig.pitchMax = pitchRange.getInputMax();
+        aimConfig.aimSpeed = aimSpeed.getInput();
+        aimConfig.randomization = randomization.getInput();
+        aimConfig.reactionMinTicks = reactionDelay.getInputMin();
+        aimConfig.reactionMaxTicks = reactionDelay.getInputMax();
+        aimConfig.placeTolerance = placeTolerance.getInput();
+        aimConfig.maxTurnPerTick = maxTurnPerTick.getInput();
+        aimConfig.fovLimit = fovLimit.getInput();
+        aimConfig.overrideTimeoutMillis = overrideTimeout.getInput();
+        aimConfig.mouseSensitivity = mc.gameSettings.mouseSensitivity;
+        return aimConfig;
+    }
+
+    private void drawDebug(String text, float x, float y, int color) {
+        if (FontUtil.poppinsMedium != null) FontUtil.poppinsMedium.drawStringWithShadow(text, x, y, color);
+        else mc.fontRendererObj.drawStringWithShadow(text, (int) x, (int) y, color);
+    }
+
+    private static void drawDebugLine(int x0, int y0, int x1, int y1, int color) {
+        int dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        int dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        int error = dx + dy;
+        while (true) {
+            Gui.drawRect(x0, y0, x0 + 1, y0 + 1, color);
+            if (x0 == x1 && y0 == y1) return;
+            int twice = error * 2;
+            if (twice >= dy) { error += dy; x0 += sx; }
+            if (twice <= dx) { error += dx; y0 += sy; }
+        }
     }
 
     private double[] movementDirection() {

@@ -44,6 +44,10 @@ public final class BuildLunarModuleJar implements Opcodes {
         }
 
         @Override public String mapFieldName(String owner, String name, String desc) {
+            if (owner.equals("keystrokesmod/client/clickgui/apple/AppleClickGui")) {
+                String mapped = fields.get("net/minecraft/client/gui/GuiScreen/" + name);
+                if (mapped != null) return mapped;
+            }
             return lookup(fields, owner, name, "");
         }
 
@@ -57,6 +61,7 @@ public final class BuildLunarModuleJar implements Opcodes {
             // javac emits subclass owners for inherited Minecraft members;
             // ForgeGradle's hierarchy-aware reobfuscation would resolve these.
             if (owner.equals("net/minecraft/client/entity/EntityPlayerSP")
+                    || owner.equals("net/minecraft/entity/EntityLivingBase")
                     || owner.equals("net/minecraft/entity/player/EntityPlayer")) {
                 for (String ancestor : new String[] {"net/minecraft/client/entity/AbstractClientPlayer",
                         "net/minecraft/entity/player/EntityPlayer", "net/minecraft/entity/EntityLivingBase",
@@ -93,7 +98,8 @@ public final class BuildLunarModuleJar implements Opcodes {
         ClassNode node = new ClassNode();
         new ClassReader(original).accept(node, 0);
         int count = 0;
-        for (MethodNode method : node.methods) {
+        for (Object value : node.methods) {
+            MethodNode method = (MethodNode) value;
             if (!method.name.equals("<init>")) continue;
             for (AbstractInsnNode insn = method.instructions.getFirst(); insn != null; insn = insn.getNext()) {
                 if (!(insn instanceof FieldInsnNode)) continue;

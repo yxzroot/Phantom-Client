@@ -1,6 +1,9 @@
 package keystrokesmod.client.mixin.mixins;
 
 import keystrokesmod.client.module.modules.render.Freelook;
+import keystrokesmod.client.module.modules.movement.LegitScaffold;
+import keystrokesmod.client.module.modules.combat.AimAssist;
+import keystrokesmod.client.utils.font.PhantomDiagnostics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.EntityRenderer;
 import net.minecraft.entity.Entity;
@@ -14,10 +17,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Change only reads inside vanilla's camera renderer, including its collision rays. */
 @Mixin(EntityRenderer.class)
 public abstract class MixinFreelookRenderer {
-    @Shadow(remap = false) private float thirdPersonDistance;
-    @Shadow(remap = false) private float thirdPersonDistanceTemp;
+    /** After vanilla mouse input, before renderWorld's picking/projection. No frame-count stepping. */
+    @Inject(method = "func_78471_a(FJ)V", remap = false, at = @At("HEAD"))
+    private void phantom$assistFrame(float partialTicks, long finishTimeNano, CallbackInfo ci) {
+        AimAssist.renderFrame(partialTicks);
+    }
+    /* Lunar exposes these camera fields under SRG names; this mixin is remap=false. */
+    @Shadow(remap = false) private float field_78490_B;
+    @Shadow(remap = false) private float field_78491_C;
     @Inject(method = "func_78467_g(F)V", remap = false, at = @At("HEAD"))
     private void freelook$frame(float partialTicks, CallbackInfo ci) {
+        AimAssist.cameraFrame(partialTicks);
+        PhantomDiagnostics.heartbeat();
+        LegitScaffold.renderFrame(partialTicks);
         Freelook.frame(Minecraft.getMinecraft().getRenderViewEntity());
     }
 
@@ -48,12 +60,12 @@ public abstract class MixinFreelookRenderer {
     @Redirect(method = "func_78467_g(F)V", remap = false,
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/EntityRenderer;field_78490_B:F", remap = false))
     private float freelook$distance(EntityRenderer renderer) {
-        return Freelook.cameraDistance(thirdPersonDistance);
+        return Freelook.cameraDistance(field_78490_B);
     }
 
     @Redirect(method = "func_78467_g(F)V", remap = false,
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/EntityRenderer;field_78491_C:F", remap = false))
     private float freelook$previousDistance(EntityRenderer renderer) {
-        return Freelook.cameraDistance(thirdPersonDistanceTemp);
+        return Freelook.cameraDistance(field_78491_C);
     }
 }

@@ -12,6 +12,8 @@ import keystrokesmod.client.module.setting.impl.TickSetting;
 import keystrokesmod.client.utils.font.FontUtil;
 import keystrokesmod.client.utils.font.PhantomTTF;
 import keystrokesmod.client.utils.font.PhantomDiagnostics;
+import keystrokesmod.client.module.modules.render.airvisuals.AirPalette;
+import keystrokesmod.client.module.modules.render.airvisuals.AirTheme;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import org.lwjgl.opengl.GL11;
@@ -27,13 +29,23 @@ import java.util.Map;
 
 /** Independent Phantom arraylist; the original Raven HUD remains installed and may be re-enabled. */
 public final class PhantomHUD extends Module {
+    public enum Appearance { AirClient, Classic }
     public enum AccentBar { Off, Left, Right }
     public enum ColorMode { Gradient, StaticAccent, Rainbow, Aurora, Sunset, Ice, Candy }
     public enum SortMode { Length, Alphabetical, Category }
     public enum Position { TopLeft, TopRight, BottomLeft, BottomRight }
     public enum Palette { Phantom, Client }
+    public enum ValueColor { Accent, SoftBlue, Custom }
+    public enum BarColor { White, Accent, Gradient, Rainbow, Theme }
 
     private final TickSetting enabledHud = new TickSetting("Enable HUD", true);
+    private final ComboSetting<Appearance> appearance = new ComboSetting<>("Visual style", Appearance.AirClient);
+    private final ComboSetting<AirPalette> visualTheme = new ComboSetting<>("Visual theme", AirPalette.Client);
+    private final SliderSetting themeFade = new SliderSetting("Theme fade (ms)", 200, 50, 1000, 10);
+    private final TickSetting watermarkInfo = new TickSetting("Watermark info", true);
+    private final TickSetting gameInfo = new TickSetting("Game info", true);
+    private final AirHudRenderer airRenderer = new AirHudRenderer();
+    private final AirTheme airTheme = new AirTheme();
     private final TickSetting values = new TickSetting("Show Values", true);
     private final TickSetting header = new TickSetting("Show Header", true);
     private final ComboSetting<ColorMode> colorMode = new ComboSetting<>("Color Mode", ColorMode.Gradient);
@@ -52,6 +64,7 @@ public final class PhantomHUD extends Module {
     private final ComboSetting<Palette> palette = new ComboSetting<>("Accent Theme", Palette.Phantom);
     private final SliderSetting xOffset = new SliderSetting("X Offset", 4, 0, 150, 1);
     private final SliderSetting yOffset = new SliderSetting("Y Offset", 4, 0, 150, 1);
+    private final TickSetting advanced = new TickSetting("Advanced options", false);
 
     private static final PhantomTTF TITLE = new PhantomTTF(11, Font.BOLD);
     private static final PhantomTTF BODY = new PhantomTTF(10, Font.PLAIN);
@@ -100,10 +113,12 @@ public final class PhantomHUD extends Module {
         super("Phantom HUD", ModuleCategory.client);
         instance = this;
         PhantomDiagnostics.begin("constructing module; runtime=" + System.getProperty("java.version"));
-        withDescription("Phantom ghost arraylist with live module values.");
-        registerSettings(enabledHud, values, header, colorMode, gradientSpeed, gradientStart, gradientEnd,
-                ghostBackgroundFade, accentBar, glow, glowIntensity, particles, idleFloat,
-                sort, scale, position, palette, xOffset, yOffset);
+        withDescription("Classic Phantom arraylist with live module values.");
+        registerSettings(enabledHud, appearance, visualTheme, themeFade, watermarkInfo, gameInfo,
+                 values, header, colorMode, scale, position, advanced,
+                 gradientStart, gradientEnd, gradientSpeed,
+                 ghostBackgroundFade, accentBar, glow, glowIntensity, particles, idleFloat,
+                 sort, palette, xOffset, yOffset);
         showInHud = false;
         PhantomDiagnostics.log("CONSTRUCT complete: settings=" + getSettings().size());
     }
@@ -112,15 +127,15 @@ public final class PhantomHUD extends Module {
         Module old = Raven.moduleManager == null ? null : Raven.moduleManager.getModuleByName("HUD");
         hostWasEnabled = old != null && old.isEnabled();
         if (old != null && !old.isEnabled()) old.enable();
-        roster = null; previousFrame = 0;
+        roster = null; previousFrame = 0; airRenderer.reset();
         PhantomDiagnostics.log("ENABLE: host HUD=" + (old == null ? "missing" : "active")
                 + ", wasActive=" + hostWasEnabled);
     }
 
     @Override public void onDisable() {
         Module old = Raven.moduleManager == null ? null : Raven.moduleManager.getModuleByName("HUD");
-        if (!hostWasEnabled && old != null && old.isEnabled()) old.disable();
-        states.clear(); ordered.clear(); roster = null; previousFrame = 0; listHeight = 0;
+        if (!hostWasEnabled && old != null && old.isEnabled() && !PhantomPanels.isActive()) old.disable();
+        states.clear(); ordered.clear(); roster = null; previousFrame = 0; listHeight = 0; airRenderer.reset();
         PhantomDiagnostics.log("DISABLE: cleared HUD render state");
     }
 
@@ -128,12 +143,13 @@ public final class PhantomHUD extends Module {
         // HUD.class hosts Phantom when available. Keep this direct listener as a compatibility
         // fallback for future builds whose Raven HUD cannot be patched.
         Module old = Raven.moduleManager == null ? null : Raven.moduleManager.getModuleByName("HUD");
-        if (old != null && old.isEnabled()) return;
+        if (PhantomPanels.isActive() || old != null && old.isEnabled()) return;
         renderGate(event, "direct");
     }
 
     /** Called from the original HUD's known-good Render2D subscription. True suppresses Raven HUD drawing. */
     public static boolean renderHosted(Render2DEvent event) {
+        if (PhantomPanels.renderHosted(event)) return true;
         PhantomHUD hud = instance;
         if (hud == null || !hud.isEnabled() || !hud.enabledHud.isToggled()) return false;
         PhantomDiagnostics.once("host-hook", "HOST hook active: rendering through original HUD overlay event");
@@ -144,7 +160,7 @@ public final class PhantomHUD extends Module {
     private void renderGate(Render2DEvent event, String source) {
         int skip = (!enabledHud.isToggled() ? 1 : 0) | (mc.thePlayer == null ? 2 : 0)
                 | (mc.theWorld == null ? 4 : 0) | (mc.currentScreen != null ? 8 : 0)
-                | (mc.gameSettings.showDebugInfo ? 16 : 0) | (Raven.moduleManager == null ? 32 : 0);
+                | (mc.gameSettings.showDebugInfo || mc.gameSettings.hideGUI ? 16 : 0) | (Raven.moduleManager == null ? 32 : 0);
         if (skip != 0) {
             if (skip != lastSkip) {
                 lastSkip = skip;
@@ -169,6 +185,10 @@ public final class PhantomHUD extends Module {
     }
 
     private void render(Render2DEvent event) {
+        if (appearance.getMode() == Appearance.AirClient) {
+            airRenderer.render(this);
+            return;
+        }
         long now = System.nanoTime();
         float dt = previousFrame == 0 ? 1F / 60 : Math.min(.05F, (now - previousFrame) / 1_000_000_000F);
         previousFrame = now;
@@ -302,6 +322,44 @@ public final class PhantomHUD extends Module {
         PhantomDiagnostics.once("render-complete", "RENDER complete: shapes and text submitted successfully");
     }
 
+    public boolean classicSettingVisible(keystrokesmod.client.module.setting.Setting setting) {
+        return advanced.isToggled() || setting == enabledHud || setting == values || setting == header
+                || setting == colorMode || setting == scale || setting == position || setting == advanced
+                || setting == appearance || setting == visualTheme || setting == watermarkInfo || setting == gameInfo;
+    }
+
+    /** Shared in-game accent; the existing ClickGUI's own theme remains untouched. */
+    public static int visualAccent(boolean bottom) {
+        int top = GuiModule.getEnabledTopRGB(), end = GuiModule.getEnabledBottomRGB();
+        PhantomHUD hud = instance;
+        if (hud == null) return bottom ? end : top;
+        hud.airTheme.update(System.nanoTime(), hud.visualTheme.getMode(), top, end,
+                (float) hud.themeFade.getInput() / 1000F);
+        return bottom ? hud.airTheme.bottom() : hud.airTheme.top();
+    }
+
+    List<Module> airRoster() { return Raven.moduleManager.getModules(); }
+    boolean airValues() { return values.isToggled(); }
+    boolean airHeader() { return header.isToggled(); }
+    boolean airWatermarkInfo() { return watermarkInfo.isToggled(); }
+    boolean airGameInfo() { return gameInfo.isToggled(); }
+    float airScale() { return (float) scale.getInput(); }
+    Position airPosition() { return position.getMode(); }
+    float airX() { return (float) xOffset.getInput(); }
+    float airY() { return (float) yOffset.getInput(); }
+    SortMode airSort() { return sort.getMode(); }
+    ColorMode airColorMode() { return colorMode.getMode(); }
+    double airSpeed() { return gradientSpeed.getInput(); }
+    int airTop() { return visualTheme.getMode() != AirPalette.Client || palette.getMode() == Palette.Client
+            ? visualAccent(false) : rgb(gradientStart); }
+    int airBottom() { return visualTheme.getMode() != AirPalette.Client || palette.getMode() == Palette.Client
+            ? visualAccent(true) : rgb(gradientEnd); }
+
+    static boolean classicActive() { return instance != null && instance.isEnabled() && instance.enabledHud.isToggled(); }
+    static void panelBounds(float x, float y, float width, float height, boolean right) {
+        layoutKnown = true; layoutX = x; layoutY = y; layoutWidth = width; layoutHeight = height; layoutRight = right;
+    }
+
     private void drawShapes(float panelWidth, boolean right, int start, int end, float pulse, long now) {
         boolean blend = GL11.glIsEnabled(GL11.GL_BLEND), texture = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
         boolean depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
@@ -387,8 +445,7 @@ public final class PhantomHUD extends Module {
         if (!fontFailed) try { font.draw(text, x, y, color, colors); return; }
         catch (RuntimeException | LinkageError ex) {
             fontFailed = true;
-            System.err.println("[Phantom HUD] TTF renderer failed; using the bundled Poppins fallback");
-            ex.printStackTrace();
+            PhantomDiagnostics.failure("TTF renderer (Poppins fallback)", ex);
         }
         if (FontUtil.poppinsMedium != null) {
             if (colors == null) FontUtil.poppinsMedium.drawStringWithShadow(text, x, y, color);
@@ -408,8 +465,7 @@ public final class PhantomHUD extends Module {
         if (!fontFailed) try { return font.width(text); }
         catch (RuntimeException | LinkageError ex) {
             fontFailed = true;
-            System.err.println("[Phantom HUD] TTF atlas failed; falling back to bundled Poppins");
-            ex.printStackTrace();
+            PhantomDiagnostics.failure("TTF atlas (Poppins fallback)", ex);
         }
         return FontUtil.poppinsMedium == null ? text.length() * 6 : (float) FontUtil.poppinsMedium.getStringWidth(text);
     }
